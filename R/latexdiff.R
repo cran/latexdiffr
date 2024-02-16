@@ -1,13 +1,18 @@
 
+#' @import assertthat
+NULL
+
+
 #' Produce a diff of two files using latexdiff
 #'
 #' `latexdiff()` uses the external utility `latexdiff` to create a PDF file
-#' showing differences between two Rmd, Rnw or TeX files.
+#' showing differences between two Rmd, qmd, Rnw or TeX files.
 #'
 #' @param path1 Path to the first file.
 #' @param path2 Path to the second file.
 #' @param output File name of the output, without the `.tex` extension.
-#' @param open Logical. Automatically open the resulting PDF?
+#' @param compile Logical. Compile the diff from tex to pdf?
+#' @param open Logical. Automatically open the resulting pdf?
 #' @param clean Logical. Clean up intermediate TeX files?
 #' @param quiet Logical. Suppress printing? Passed to `render` and `knit`, and hides standard error
 #'   of `latexdiff` itself.
@@ -18,9 +23,6 @@
 #'   default avoids some problems with Rmd files.
 #'
 #' @details
-#' File types are determined by extension,which should be one of `.tex`, `.Rmd`
-#' or `.rnw`. Rmd files are processed by [rmarkdown::render()]. Rnw files
-#' are processed by [knitr::knit()].
 #'
 #' You will need the `latexdiff` utility installed on your system:
 #'
@@ -32,13 +34,20 @@
 #' sudo apt install latexdiff
 #' ```
 #'
+#' File types are determined by extension,which should be one of `.tex`, `.Rmd`,
+#' `.qmd` or `.rnw`. Rmd files are processed by [rmarkdown::render()]. Rnw files
+#' are processed by [knitr::knit()]. qmd files are processed by
+#' [quarto::quarto_render()].
+#'
 #' `latexdiff` is not perfect. Some changes will confuse it. In particular:
 #'
 #' * If input and output files are in different directories, the `"diff.tex"`
-#'    file may have incorrect paths for e.g. included figures. `latexdiff`
-#'    will add the `--flatten` option in this case, but things still are
-#'    not guaranteed to work.
-
+#'   file may have incorrect paths for e.g. included figures. `latexdiff`
+#'   will add the `--flatten` option in this case, but things still are
+#'   not guaranteed to work.
+#' * Sometimes the `"diff.tex"` file fails to compile to pdf. If so,
+#'   set `compile = FALSE` and try editing the tex file manually.
+#'
 #' @return
 #' Invisible NULL.
 #'
@@ -52,12 +61,17 @@ latexdiff <- function (
         path1,
         path2,
         output        = "diff",
+        compile       = TRUE,
         open          = interactive(),
         clean         = TRUE,
         quiet         = TRUE,
         output_format = NULL,
         ld_opts       = "--replace-context2cmd=\"none\""
       ) {
+  assert_that(is.string(path1), is.string(path2), is.string(output),
+                is.string(ld_opts))
+  assert_that(is.flag(compile), is.flag(open), is.flag(clean), is.flag(quiet))
+
   force(quiet)
   paths <- c(path1, path2)
   tex_paths <- rep(NA_character_, 2)
@@ -77,11 +91,11 @@ latexdiff <- function (
   }
 
   extensions <- tolower(fs::path_ext(paths))
-  if (! all(extensions %in% c("rmd", "rnw", "tex"))) {
+  if (! all(extensions %in% c("rmd", "rnw", "tex", "qmd"))) {
     stop(sprintf("Unrecognized file types: %s, %s.",
             fs::path_file(path1),
             fs::path_file(path2)),
-          "Files must end in '.Rmd', '.Rnw' or '.tex'")
+          "Files must end in '.Rmd', '.qmd', '.Rnw' or '.tex'")
   }
 
   for (idx in 1:2) {
@@ -103,8 +117,18 @@ latexdiff <- function (
               output_format <- do.call(rmarkdown::latex_document, doc_opts)
             }
             rmarkdown::render(paths[idx], output_format = output_format, quiet = quiet)
+          } else if (extensions[idx] == "qmd") {
+            loadNamespace("quarto")
+            tex_file <- fs::path_ext_set(paths[idx], "tex")
+            tex_file <- fs::path_file(tex_file)
+            quarto::quarto_render(paths[idx], output_format = "latex",
+                                  output_file = tex_file, quiet = quiet)
+            tex_file
           }
   }
+  on.exit({
+    if (clean) file.remove(setdiff(tex_paths, paths))
+  })
 
   diff_tex_path <- paste0(output, ".tex")
   latexdiff_stderr <- if (quiet) FALSE else ""
@@ -115,38 +139,39 @@ latexdiff <- function (
         )
   if (ld_ret != 0L) stop("latexdiff command returned an error")
 
-  old_wd <- getwd()
-  setwd(fs::path_dir(diff_tex_path))
-  on.exit(setwd(old_wd))
-  diff_tex_file <- fs::path_file(diff_tex_path)
-  pdf_start_time <- Sys.time()
-  tryCatch({
+  if (compile) {
+    old_wd <- getwd()
+    setwd(fs::path_dir(diff_tex_path))
+    on.exit(setwd(old_wd))
+    diff_tex_file <- fs::path_file(diff_tex_path)
+    pdf_start_time <- Sys.time()
+    tryCatch({
 
-      if (requireNamespace("tinytex", quietly = TRUE)) {
-        tinytex::latexmk(diff_tex_file, clean = clean)
-      } else {
-        tools::texi2pdf(diff_tex_file, clean = clean)
-      }
-    },
-    error = function (e) {
-      warning("PDF creation gave an error:\n\t", e$message,
-            "\nSometimes PDF creation still worked, so let's continue.")
-    },
-    finally = setwd(old_wd)
-  )
+        if (requireNamespace("tinytex", quietly = TRUE)) {
+          tinytex::latexmk(diff_tex_file, clean = clean)
+        } else {
+          tools::texi2pdf(diff_tex_file, clean = clean)
+        }
+      },
+      error = function (e) {
+        warning("PDF creation gave an error:\n\t", e$message,
+              "\nSometimes PDF creation still worked, so let's continue.")
+      },
+      finally = setwd(old_wd)
+    )
 
-  if (clean) {
-    file.remove(setdiff(tex_paths, paths))
-    file.remove(diff_tex_path)
-  }
+    if (clean) {
+      file.remove(diff_tex_path)
+    }
 
-  diff_pdf_path <- paste0(output, ".pdf")
-  if (! fs::file_exists(diff_pdf_path) ||
-        ! fs::file_info(diff_pdf_path)$modification_time >= pdf_start_time) {
-    stop("Failed to create PDF.")
-  }
-  if (open) {
-    auto_open(diff_pdf_path)
+    diff_pdf_path <- paste0(output, ".pdf")
+    if (! fs::file_exists(diff_pdf_path) ||
+          ! fs::file_info(diff_pdf_path)$modification_time >= pdf_start_time) {
+      stop("Failed to create PDF.")
+    }
+    if (open) {
+      auto_open(diff_pdf_path)
+    }
   }
 
   return(invisible(NULL))
@@ -178,6 +203,8 @@ latexdiff <- function (
 #' git_latexdiff("file1.Rmd", "master@{7 days ago}")
 #' }
 git_latexdiff <- function (path, revision, clean = TRUE, ...) {
+  assert_that(is.string(path), is.string(revision), is.flag(clean))
+
   dir <- fs::path_dir(path)
   cur_file <- fs::path_file(path)
   cur_filebase <- fs::path_ext_remove(cur_file)

@@ -8,6 +8,7 @@ latexdiff(
   path1,
   path2,
   output = "diff",
+  compile = TRUE,
   open = interactive(),
   clean = TRUE,
   quiet = TRUE,
@@ -22,7 +23,9 @@ latexdiff(
 
 \item{output}{File name of the output, without the \code{.tex} extension.}
 
-\item{open}{Logical. Automatically open the resulting PDF?}
+\item{compile}{Logical. Compile the diff from tex to pdf?}
+
+\item{open}{Logical. Automatically open the resulting pdf?}
 
 \item{clean}{Logical. Clean up intermediate TeX files?}
 
@@ -41,19 +44,22 @@ Invisible NULL.
 }
 \description{
 \code{latexdiff()} uses the external utility \code{latexdiff} to create a PDF file
-showing differences between two Rmd, Rnw or TeX files.
+showing differences between two Rmd, qmd, Rnw or TeX files.
 }
 \details{
-File types are determined by extension,which should be one of \code{.tex}, \code{.Rmd}
-or \code{.rnw}. Rmd files are processed by \code{\link[rmarkdown:render]{rmarkdown::render()}}. Rnw files
-are processed by \code{\link[knitr:knit]{knitr::knit()}}.
+You will need the \code{latexdiff} utility installed on your system:
 
-You will need the \code{latexdiff} utility installed on your system:\preformatted{# on MacOS:
+\if{html}{\out{<div class="sourceCode">}}\preformatted{# on MacOS:
 brew install latexdiff
 
 # on Linux:
 sudo apt install latexdiff
-}
+}\if{html}{\out{</div>}}
+
+File types are determined by extension,which should be one of \code{.tex}, \code{.Rmd},
+\code{.qmd} or \code{.rnw}. Rmd files are processed by \code{\link[rmarkdown:render]{rmarkdown::render()}}. Rnw files
+are processed by \code{\link[knitr:knit]{knitr::knit()}}. qmd files are processed by
+\code{\link[quarto:quarto_render]{quarto::quarto_render()}}.
 
 \code{latexdiff} is not perfect. Some changes will confuse it. In particular:
 \itemize{
@@ -61,6 +67,8 @@ sudo apt install latexdiff
 file may have incorrect paths for e.g. included figures. \code{latexdiff}
 will add the \code{--flatten} option in this case, but things still are
 not guaranteed to work.
+\item Sometimes the \code{"diff.tex"} file fails to compile to pdf. If so,
+set \code{compile = FALSE} and try editing the tex file manually.
 }
 }
 \examples{

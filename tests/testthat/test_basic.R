@@ -16,8 +16,8 @@ in_git <- function () {
   return(! inherits(in_git, "try-error"))
 }
 
-test_that("All 3 file types compile", {
-  files1 <- c("foo-prerendered.tex", "foo-rnw.Rnw", "foo-rmd.Rmd")
+test_that("All file types compile", {
+  files1 <- c("foo-prerendered.tex", "foo-rnw.Rnw", "foo-rmd.Rmd", "foo-qmd.qmd")
   files2 <- c("bar-prerendered.tex", "bar-rnw.Rnw", "bar-rmd.Rmd")
 
   skip_if_not_installed("rmarkdown")
@@ -59,7 +59,9 @@ test_that("Can compile when in different directory", {
     file.copy(files[idx], tmpdir[idx])
     paths[idx] <- file.path(tmpdir[idx], files[idx])
   }
-  latexdiff(paths[1], paths[2], open = FALSE)
+  expect_warning(
+    latexdiff(paths[1], paths[2], open = FALSE)
+  )
   check_and_remove("diff.pdf")
 })
 
@@ -95,8 +97,22 @@ test_that("Gives error when diff.pdf is old", {
 
   skip_if_not(file.exists("diff.pdf"), message = "diff.pdf didn't get created")
 
-  expect_error(latexdiff(file1, "wont-compile.tex"), "Failed to create")
+  # warnings are fine but not required
+  suppressWarnings(
+    expect_error(latexdiff(file1, "wont-compile.tex"), "Failed to create")
+  )
   if (file.exists("diff.pdf")) file.remove("diff.pdf")
+})
+
+
+test_that("Works correctly when compile = FALSE", {
+  file1 <- "foo-prerendered.tex"
+  file2 <- "bar-prerendered.tex"
+
+  if (file.exists("diff.pdf")) file.remove("diff.pdf")
+  latexdiff(file1, file2, compile = FALSE)
+  check_and_remove("diff.tex")
+  expect_false(file.exists("diff.pdf"))
 })
 
 
@@ -106,4 +122,5 @@ test_that("git_latexdiff works", {
   skip_if_not(in_git())
 
   expect_error(git_latexdiff("git-changes.Rmd", "0ae84d"), regexp = NA)
+  check_and_remove("diff.pdf")
 })

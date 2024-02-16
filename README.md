@@ -4,8 +4,9 @@
 
 
 <!-- badges: start -->
+[![CRAN status](https://www.r-pkg.org/badges/version/latexdiffr)](https://CRAN.R-project.org/package=latexdiffr)
 [![R-CMD-check](https://github.com/hughjonesd/latexdiffr/workflows/R-CMD-check/badge.svg)](https://github.com/hughjonesd/latexdiffr/actions)
-[![Coverage status](https://codecov.io/gh/hughjonesd/latexdiffr/branch/master/graph/badge.svg)](https://codecov.io/github/hughjonesd/latexdiffr?branch=master)
+[![Coverage status](https://codecov.io/gh/hughjonesd/latexdiffr/branch/master/graph/badge.svg)](https://app.codecov.io/github/hughjonesd/latexdiffr?branch=master)
 <!-- badges: end -->
   
 
@@ -26,6 +27,9 @@ brew install latexdiff
 
 # on Linux:
 sudo apt install latexdiff 
+
+# with tinytex
+Rscript -e "tinytex::tlmgr_install('latexdiff')"
 ```
 
 ## Example
@@ -33,6 +37,7 @@ sudo apt install latexdiff
 
 ``` r
 library(latexdiffr)
+# tinytex::tlmgr_path("add")
 latexdiff("file1.Rmd", "file2.Rmd")
 
 ```
